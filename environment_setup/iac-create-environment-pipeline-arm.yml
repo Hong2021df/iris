@@ -1,0 +1,36 @@
+# CI/PR Pipeline that deploys an ARM template to create or update the resources needed by the other pipelines.
+trigger:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - environment_setup/arm-templates/*
+pr:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - environment_setup/arm-templates/*
+
+pool:
+  vmImage: "ubuntu-latest"
+
+variables:
+  - group: devopsforai-aml-vg
+  - name: WORKSPACE_SKU # https://docs.microsoft.com/en-us/azure/machine-learning/overview-what-is-azure-ml#sku
+    value: basic
+
+steps:
+  - task: AzureResourceGroupDeployment@2 # Deploy an Azure Resource Manger (ARM) template to a resource group and manage virtual machines
+    inputs:
+      azureSubscription: "$(AZURE_RM_SVC_CONNECTION)" 
+      action: "Create Or Update Resource Group" # Action to be performed on the Azure resouurces or resource group. Options: create Or Update Resource Group, select Resource Group, start, stop, stopWithDeallocate, restart, delete, deleteRG
+      resourceGroupName: "$(RESOURCE_GROUP)"
+      location: $(LOCATION) # Required when action == Create Or Update Resource Group
+      templateLocation: "Linked artifact" # Options: linked Artifact, uRL Of The File
+      csmFile: "$(Build.SourcesDirectory)/environment_setup/arm-templates/cloud-environment.json" # Specify the path or a pattern pointing to the Azure Resource Manager template. Required when TemplateLocation == Linked Artifact
+      overrideParameters: "-baseName $(BASE_NAME) -location $(LOCATION) -workspace $(WORKSPACE_NAME) -sku $(WORKSPACE_SKU)" # Optional
+      deploymentMode: "Incremental" # Incremental mode handles deployments as incremental updates to the resource group. It leaves unchanged resources that exist in the resource group but are not specified in the template. Options: Incremental, Complete, Validate
+    displayName: "Deploy MLOps resources to Azure"
